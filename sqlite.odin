@@ -5,7 +5,12 @@ import "core:strings";
 import "core:mem";
 import "core:fmt";
 
-foreign import "./sqlite3.a";
+when ODIN_OS == "darwin" {
+	foreign import "./sqlite3.a";
+} 
+when ODIN_OS == "windows" {
+	foreign import "./sqlite3.lib";
+}
 
 Handle :: rawptr;
 Statement :: rawptr;
