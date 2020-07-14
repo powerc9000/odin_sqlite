@@ -31,6 +31,7 @@ foreign sqlite3 {
 	sqlite3_column_name :: proc(Statement, c.int) -> cstring ---;
 	sqlite3_column_text :: proc(Statement, c.int) -> cstring ---;
 	sqlite3_column_int :: proc(Statement, c.int) -> i64 ---;
+	sqlite3_errmsg :: proc(Handle) -> cstring ---;
 }
 
 
@@ -62,9 +63,18 @@ cstring_to_string :: proc(str: cstring) -> string {
 			return strings.string_from_ptr(transmute(^u8)dest, length);
 }
 
-query :: proc(db: Handle, query: string) -> QueryResult {
+query :: proc(db: Handle, query: string) -> (queryResult: QueryResult, success: bool, errStr: string)  {
 	result := make([dynamic]map[string]RowValue);
-	statement := prepare(db, query);
+	success = true;
+	errStr = "";
+	statement, ok, errMessage := prepare(db, query);
+
+	if !ok {
+		errStr = errMessage;
+		success = false;
+		return;
+	}
+
 	defer sqlite3_finalize(statement);
 	for sqlite3_step(statement) != SQLITE_DONE {
 		totalCols := sqlite3_column_count(statement);
@@ -86,12 +96,16 @@ query :: proc(db: Handle, query: string) -> QueryResult {
 
 	return {
 		rows=result
-	};
+	}, success, errStr;
 }
 
-prepare :: proc(db: Handle, query: string) -> Statement {
+prepare :: proc(db: Handle, query: string) -> (Statement, bool, string) {
 	cstr := strings.clone_to_cstring(query, context.temp_allocator);
 	statement: Statement;
-	sqlite3_prepare_v2(db, cstr, -1, &statement, nil);
-	return statement;
+	errStr := "";
+	res := sqlite3_prepare_v2(db, cstr, -1, &statement, nil);
+	if res != 0 {
+		errStr = cstring_to_string(sqlite3_errmsg(db));
+	}
+	return statement, res == 0, errStr;
 }
