@@ -14,6 +14,7 @@ when ODIN_OS == "windows" {
 
 Handle :: rawptr;
 Statement :: rawptr;
+BackupHandle :: rawptr;
 SqliteStatus :: distinct int;
 SQLITE_DONE : SqliteStatus : 101;
 SqliteColumnType :: enum {
@@ -24,6 +25,7 @@ SqliteColumnType :: enum {
 	NULL     = 5
 
 }
+
 
 
 foreign sqlite3 {
@@ -39,6 +41,9 @@ foreign sqlite3 {
 	sqlite3_column_int :: proc(Statement, c.int) -> i64 ---;
 	sqlite3_errmsg :: proc(Handle) -> cstring ---;
 	sqlite3_exec :: proc(Handle, cstring, rawptr, rawptr, rawptr) -> int ---;
+	sqlite3_backup_init :: proc(Handle, cstring, Handle, cstring) -> BackupHandle ---;
+	sqlite3_backup_step :: proc(BackupHandle, c.int) -> c.int ---;
+	sqlite3_backup_finish :: proc(BackupHandle) -> c.int ---;
 }
 
 
@@ -49,6 +54,20 @@ RowValue :: union {
 
 QueryResult :: struct {
 	rows: [dynamic]map[string]RowValue
+}
+
+backup_db :: proc(fromDb: Handle, toDb: Handle) -> bool {
+	if fromDb == nil || toDb == nil {
+		return false;
+	}
+
+	backupHandle := sqlite3_backup_init(toDb, "main", fromDb, "main");
+	err := sqlite3_backup_step(backupHandle, -1);
+	e2 := sqlite3_backup_finish(backupHandle);
+	fmt.println(err, e2);
+
+	return true;
+
 }
 
 open :: proc(path: string) -> (Handle, bool) {
