@@ -52,8 +52,12 @@ RowValue :: union {
 	string
 }
 
+
+Row :: map[string]RowValue;
+RowValues :: [dynamic]Row;
+
 QueryResult :: struct {
-	rows: [dynamic]map[string]RowValue
+	rows: RowValues
 }
 
 backup_db :: proc(fromDb: Handle, toDb: Handle) -> bool {
