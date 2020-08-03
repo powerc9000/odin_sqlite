@@ -26,10 +26,14 @@ SqliteColumnType :: enum {
 
 }
 
+SQLITE_OPEN_READWRITE : c.int : 0x00000002;
+SQLITE_OPEN_CREATE : c.int : 0x00000004;
+
 
 
 foreign sqlite3 {
-	sqlite3_open :: proc(cstring, ^Handle) -> int ---;
+	sqlite3_open :: proc(cstring, ^Handle) -> c.int ---;
+	sqlite3_open_v2 :: proc(cstring, ^Handle, c.int, cstring) -> c.int ---;
 	sqlite3_close :: proc(Handle) ---;
 	sqlite3_finalize :: proc(Statement) ---;
 	sqlite3_prepare_v2 :: proc(Handle, cstring, c.int, ^Statement, ^^u8) -> c.int ---;
@@ -80,11 +84,15 @@ backup_db :: proc(fromDb: Handle, toDb: Handle) -> bool {
 
 }
 
-open :: proc(path: string) -> (Handle, bool) {
+open :: proc(path: string, create:= true) -> (Handle, bool) {
 
 	db : Handle;
 	cstr := strings.clone_to_cstring(path, context.temp_allocator);
-	success := sqlite3_open(cstr, &db);
+	flags := SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE;
+	if !create {
+		flags = SQLITE_OPEN_READWRITE;
+	}
+	success := sqlite3_open_v2(cstr, &db, flags, nil);
 	return db, success == 0;
 }
 close :: proc(db: Handle) {
