@@ -102,9 +102,12 @@ close :: proc(db: Handle) {
 
 cstring_to_string :: proc(str: cstring) -> string {
 	length := len(str);
-			dest: rawptr = mem.alloc(length);
-			mem.copy(dest, cast(rawptr)str, length);
-			return strings.string_from_ptr(transmute(^u8)dest, length);
+	if length > 0 {
+		dest:= make([]byte, length);
+		mem.copy(&dest[0], cast(rawptr)str, length);
+		return strings.string_from_ptr(&dest[0], length);
+	}
+	return "";
 }
 
 exec :: proc(db: Handle, query: string) -> bool {
@@ -229,6 +232,20 @@ query :: proc(db: Handle, query: string, values: ..any) -> (queryResult: QueryRe
 	return {
 		rows=result
 	}, success, err;
+}
+
+cleanup :: proc(queryValue: QueryResult) {
+	for row in queryValue.rows {
+		for _, value in row {
+			switch type in value {
+				case string: {
+					delete(type);
+				}
+				case i64:
+			}
+		}
+	}
+	delete(queryValue.rows);
 }
 
 prepare :: proc(db: Handle, query: string) -> (Statement, bool, string) {
