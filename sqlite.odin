@@ -43,7 +43,8 @@ foreign sqlite3 {
 	sqlite3_column_count :: proc(Statement) -> c.int ---;
 	sqlite3_column_name :: proc(Statement, c.int) -> cstring ---;
 	sqlite3_column_text :: proc(Statement, c.int) -> cstring ---;
-	sqlite3_column_int :: proc(Statement, c.int) -> i64 ---;
+	sqlite3_column_int :: proc(Statement, c.int) -> i32 ---;
+	sqlite3_column_int64 :: proc(Statement, c.int) -> i64 ---;
 	sqlite3_errmsg :: proc(Handle) -> cstring ---;
 	sqlite3_exec :: proc(Handle, cstring, rawptr, rawptr, rawptr) -> int ---;
 	sqlite3_backup_init :: proc(Handle, cstring, Handle, cstring) -> BackupHandle ---;
@@ -222,7 +223,7 @@ query :: proc(db: Handle, query: string, values: ..any) -> (queryResult: QueryRe
 					row[name] = cstring_to_string(sqlite3_column_text(statement, colIndex));
 				}
 				case .INTEGER: {
-					row[name] = sqlite3_column_int(statement, colIndex);
+					row[name] = sqlite3_column_int64(statement, colIndex);
 				}
 			}
 		}
