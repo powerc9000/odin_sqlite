@@ -69,7 +69,8 @@ Row :: map[string]RowValue;
 RowValues :: [dynamic]Row;
 
 QueryResult :: struct {
-	rows: RowValues
+	rows: RowValues,
+	error: SqlError
 }
 
 backup_db :: proc(fromDb: Handle, toDb: Handle) -> bool {
@@ -125,14 +126,15 @@ SqlError :: struct {
 	code: int
 }
 
-query :: proc(db: Handle, query: string, values: ..any) -> (queryResult: QueryResult, success: bool, err: SqlError)  {
+
+query :: proc(db: Handle, query: string, values: ..any) -> (queryResult: QueryResult, success: bool)  {
 	result := make([dynamic]map[string]RowValue);
-	success = true;
 	statement, ok, errMessage := prepare(db, query);
+	success = true;
 
 
 	if !ok {
-		err= {message=errMessage, code=1};
+		queryResult.error = {message=errMessage, code=1};
 		success = false;
 		return;
 	}
@@ -197,7 +199,7 @@ query :: proc(db: Handle, query: string, values: ..any) -> (queryResult: QueryRe
 				}
 				case: {
 					success = false;
-					err = {message="Can't handle that type of argument", code=0};
+					queryResult.error = {message="Can't handle that type of argument", code=0};
 					return;
 				}
 			}
@@ -210,7 +212,7 @@ query :: proc(db: Handle, query: string, values: ..any) -> (queryResult: QueryRe
 		if step != SQLITE_ROW {
 			fmt.println(step);
 			success = false;
-			err = {message=cstring_to_string(sqlite3_errmsg(db)), code=int(step)};
+			queryResult.error = {message=cstring_to_string(sqlite3_errmsg(db)), code=int(step)};
 			break;
 		}
 		totalCols := sqlite3_column_count(statement);
@@ -232,7 +234,7 @@ query :: proc(db: Handle, query: string, values: ..any) -> (queryResult: QueryRe
 	}
 	return {
 		rows=result
-	}, success, err;
+	}, success;
 }
 
 cleanup :: proc(queryValue: QueryResult) {
