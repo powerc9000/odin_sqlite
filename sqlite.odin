@@ -134,6 +134,16 @@ SqlError :: struct {
 	code: int
 }
 
+row_value_by_key_or_default :: proc($T: typeid, row: Row, key: string, def: T) -> T {
+	if key in row {
+		if value, ok := row[key].(T); ok {
+			return value;
+		}
+	}
+
+	return def;
+}
+
 
 query :: proc(db: Handle, query: string, values: ..any) -> (queryResult: QueryResult, success: bool)  {
 	result := make([dynamic]map[string]RowValue);
