@@ -165,8 +165,8 @@ query :: proc(db: Handle, query: string, values: ..any) -> (queryResult: QueryRe
 					sqlite3_bind_text(statement, i32(index + 1), cstr, -1, nil);
 				}
 				case bool: {
-					val := v ? 1 : 0;
-					sqlite.bind_int64(statement, i32(index + 1), val);
+					val : i64 = v ? 1 : 0;
+					sqlite3_bind_int64(statement, i32(index + 1), val);
 				}
 				case i32, u32, i8, u8, i16, u16: {
 					res : i32;
