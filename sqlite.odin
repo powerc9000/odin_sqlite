@@ -20,7 +20,7 @@ SQLITE_DONE : SqliteStatus : 101;
 SQLITE_ROW : SqliteStatus : 100;
 SqliteColumnType :: enum {
 	INTEGER  = 1,
-	FLOAT    = 2,
+	REAL = 2,
 	TEXT = 3,
 	BLOB     = 4,
 	NULL     = 5
@@ -45,6 +45,9 @@ foreign sqlite3 {
 	sqlite3_column_text :: proc(Statement, c.int) -> cstring ---;
 	sqlite3_column_int :: proc(Statement, c.int) -> i32 ---;
 	sqlite3_column_int64 :: proc(Statement, c.int) -> i64 ---;
+	sqlite3_column_double :: proc(Statement, c.int) -> f64 ---;
+	sqlite3_column_blob :: proc(Statement, c.int) -> rawptr ---;
+	sqlite3_column_bytes :: proc(Statement, c.int) -> c.int ---;
 	sqlite3_errmsg :: proc(Handle) -> cstring ---;
 	sqlite3_exec :: proc(Handle, cstring, rawptr, rawptr, rawptr) -> int ---;
 	sqlite3_backup_init :: proc(Handle, cstring, Handle, cstring) -> BackupHandle ---;
@@ -55,13 +58,18 @@ foreign sqlite3 {
 	sqlite3_bind_int64 :: proc(Statement, c.int, i64) -> c.int ---;
 	sqlite3_bind_null :: proc(Statement, c.int) -> c.int ---;
 	sqlite3_bind_text :: proc(Statement, c.int, cstring, c.int, rawptr) -> c.int ---;
+	//NOTE: the last argument is technically a void * BUT sqlite allows you to pass -1 to signal something.
+	//It's ugly so we put the type as i64 here but it should be a pointer if using the callback function.
+	sqlite3_bind_blob :: proc(Statement, c.int, rawptr, c.int, i64) -> c.int ---;
 
 }
 
 
 RowValue :: union {
 	i64,
-	string
+	f64,
+	string,
+	[]u8
 }
 
 
@@ -69,7 +77,8 @@ Row :: map[string]RowValue;
 RowValues :: [dynamic]Row;
 
 QueryResult :: struct {
-	rows: RowValues
+	rows: RowValues,
+	error: SqlError
 }
 
 backup_db :: proc(fromDb: Handle, toDb: Handle) -> bool {
@@ -125,14 +134,25 @@ SqlError :: struct {
 	code: int
 }
 
-query :: proc(db: Handle, query: string, values: ..any) -> (queryResult: QueryResult, success: bool, err: SqlError)  {
+row_value_by_key_or_default :: proc($T: typeid, row: Row, key: string, def: T) -> T {
+	if key in row {
+		if value, ok := row[key].(T); ok {
+			return value;
+		}
+	}
+
+	return def;
+}
+
+
+query :: proc(db: Handle, query: string, values: ..any) -> (queryResult: QueryResult, success: bool)  {
 	result := make([dynamic]map[string]RowValue);
-	success = true;
 	statement, ok, errMessage := prepare(db, query);
+	success = true;
 
 
 	if !ok {
-		err= {message=errMessage, code=1};
+		queryResult.error = {message=errMessage, code=1};
 		success = false;
 		return;
 	}
@@ -199,9 +219,12 @@ query :: proc(db: Handle, query: string, values: ..any) -> (queryResult: QueryRe
 					}
 					sqlite3_bind_double(statement, i32(index + 1), res);
 				}
+				case []u8: {
+					pointer := sqlite3_bind_blob(statement, i32(index + 1), rawptr(&v[0]), i32(len(v)), -1);
+				}
 				case: {
 					success = false;
-					err = {message="Can't handle that type of argument", code=0};
+					queryResult.error = {message="Can't handle that type of argument", code=0};
 					return;
 				}
 			}
@@ -214,7 +237,7 @@ query :: proc(db: Handle, query: string, values: ..any) -> (queryResult: QueryRe
 		if step != SQLITE_ROW {
 			fmt.println(step);
 			success = false;
-			err = {message=cstring_to_string(sqlite3_errmsg(db)), code=int(step)};
+			queryResult.error = {message=cstring_to_string(sqlite3_errmsg(db)), code=int(step)};
 			break;
 		}
 		totalCols := sqlite3_column_count(statement);
@@ -229,6 +252,20 @@ query :: proc(db: Handle, query: string, values: ..any) -> (queryResult: QueryRe
 				case .INTEGER: {
 					row[name] = sqlite3_column_int64(statement, colIndex);
 				}
+				case .REAL: {
+					row[name] = sqlite3_column_double(statement, colIndex);
+				}
+				case .BLOB: {
+					rowData := sqlite3_column_blob(statement, colIndex);
+					totalBytes := sqlite3_column_bytes(statement, colIndex);
+
+					result := make([]u8, int(totalBytes));
+
+					mem.copy(&result[0], rowData, int(totalBytes));
+
+					row[name] = result;
+
+				}
 			}
 		}
 		step = sqlite3_step(statement);
@@ -236,7 +273,7 @@ query :: proc(db: Handle, query: string, values: ..any) -> (queryResult: QueryRe
 	}
 	return {
 		rows=result
-	}, success, err;
+	}, success;
 }
 
 cleanup :: proc(queryValue: QueryResult) {
@@ -247,6 +284,10 @@ cleanup :: proc(queryValue: QueryResult) {
 					delete(type);
 				}
 				case i64:
+				case f64:
+				case []u8: {
+					delete(type);
+				}
 			}
 		}
 	}
