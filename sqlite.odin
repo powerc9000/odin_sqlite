@@ -144,6 +144,10 @@ query :: proc(db: Handle, query: string, values: ..any) -> (queryResult: QueryRe
 					cstr := strings.clone_to_cstring(v, context.temp_allocator);
 					sqlite3_bind_text(statement, i32(index + 1), cstr, -1, nil);
 				}
+				case bool: {
+					val := v ? 1 : 0;
+					sqlite.bind_int64(statement, i32(index + 1), val);
+				}
 				case i32, u32, i8, u8, i16, u16: {
 					res : i32;
 					switch v in value {
