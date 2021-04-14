@@ -58,6 +58,7 @@ foreign sqlite3 {
 	sqlite3_bind_int64 :: proc(Statement, c.int, i64) -> c.int ---;
 	sqlite3_bind_null :: proc(Statement, c.int) -> c.int ---;
 	sqlite3_bind_text :: proc(Statement, c.int, cstring, c.int, rawptr) -> c.int ---;
+	sqlite3_last_insert_rowid :: proc(Handle) -> i64 ---;
 	//NOTE: the last argument is technically a void * BUT sqlite allows you to pass -1 to signal something.
 	//It's ugly so we put the type as i64 here but it should be a pointer if using the callback function.
 	sqlite3_bind_blob :: proc(Statement, c.int, rawptr, c.int, i64) -> c.int ---;
@@ -303,4 +304,8 @@ prepare :: proc(db: Handle, query: string) -> (Statement, bool, string) {
 		errStr = cstring_to_string(sqlite3_errmsg(db));
 	}
 	return statement, res == 0, errStr;
+}
+
+last_insert_rowid :: proc(db: Handle) -> i64 {
+	return sqlite3_last_insert_rowid(db);
 }
