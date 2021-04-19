@@ -30,6 +30,8 @@ SqliteColumnType :: enum {
 SQLITE_OPEN_READWRITE : c.int : 0x00000002;
 SQLITE_OPEN_CREATE : c.int : 0x00000004;
 
+SQLITE_OPEN_FULLMUTEX : c.int : 0x00010000;
+
 
 
 foreign sqlite3 {
@@ -100,9 +102,9 @@ open :: proc(path: string, create:= true) -> (Handle, bool) {
 
 	db : Handle;
 	cstr := strings.clone_to_cstring(path, context.temp_allocator);
-	flags := SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE;
-	if !create {
-		flags = SQLITE_OPEN_READWRITE;
+	flags := SQLITE_OPEN_READWRITE | SQLITE_OPEN_FULLMUTEX;
+	if create {
+		flags |= SQLITE_OPEN_CREATE;
 	}
 	success := sqlite3_open_v2(cstr, &db, flags, nil);
 	return db, success == 0;
