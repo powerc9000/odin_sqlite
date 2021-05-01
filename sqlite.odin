@@ -30,6 +30,8 @@ SqliteColumnType :: enum {
 SQLITE_OPEN_READWRITE : c.int : 0x00000002;
 SQLITE_OPEN_CREATE : c.int : 0x00000004;
 
+SQLITE_OPEN_FULLMUTEX : c.int : 0x00010000;
+
 
 
 foreign sqlite3 {
@@ -58,6 +60,7 @@ foreign sqlite3 {
 	sqlite3_bind_int64 :: proc(Statement, c.int, i64) -> c.int ---;
 	sqlite3_bind_null :: proc(Statement, c.int) -> c.int ---;
 	sqlite3_bind_text :: proc(Statement, c.int, cstring, c.int, rawptr) -> c.int ---;
+	sqlite3_last_insert_rowid :: proc(Handle) -> i64 ---;
 	//NOTE: the last argument is technically a void * BUT sqlite allows you to pass -1 to signal something.
 	//It's ugly so we put the type as i64 here but it should be a pointer if using the callback function.
 	sqlite3_bind_blob :: proc(Statement, c.int, rawptr, c.int, i64) -> c.int ---;
@@ -99,9 +102,9 @@ open :: proc(path: string, create:= true) -> (Handle, bool) {
 
 	db : Handle;
 	cstr := strings.clone_to_cstring(path, context.temp_allocator);
-	flags := SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE;
-	if !create {
-		flags = SQLITE_OPEN_READWRITE;
+	flags := SQLITE_OPEN_READWRITE | SQLITE_OPEN_FULLMUTEX;
+	if create {
+		flags |= SQLITE_OPEN_CREATE;
 	}
 	success := sqlite3_open_v2(cstr, &db, flags, nil);
 	return db, success == 0;
@@ -163,6 +166,10 @@ query :: proc(db: Handle, query: string, values: ..any) -> (queryResult: QueryRe
 				case string: {
 					cstr := strings.clone_to_cstring(v, context.temp_allocator);
 					sqlite3_bind_text(statement, i32(index + 1), cstr, -1, nil);
+				}
+				case bool: {
+					val : i64 = v ? 1 : 0;
+					sqlite3_bind_int64(statement, i32(index + 1), val);
 				}
 				case i32, u32, i8, u8, i16, u16: {
 					res : i32;
@@ -299,4 +306,8 @@ prepare :: proc(db: Handle, query: string) -> (Statement, bool, string) {
 		errStr = cstring_to_string(sqlite3_errmsg(db));
 	}
 	return statement, res == 0, errStr;
+}
+
+last_insert_rowid :: proc(db: Handle) -> i64 {
+	return sqlite3_last_insert_rowid(db);
 }
