@@ -23,7 +23,7 @@ SqliteColumnType :: enum {
 	REAL = 2,
 	TEXT = 3,
 	BLOB     = 4,
-	NULL     = 5
+	NULL     = 5,
 
 }
 
@@ -69,7 +69,7 @@ RowValue :: union {
 	i64,
 	f64,
 	string,
-	[]u8
+	[]u8,
 }
 
 
@@ -78,7 +78,7 @@ RowValues :: [dynamic]Row;
 
 QueryResult :: struct {
 	rows: RowValues,
-	error: SqlError
+	error: SqlError,
 }
 
 backup_db :: proc(fromDb: Handle, toDb: Handle) -> bool {
@@ -131,7 +131,7 @@ exec :: proc(db: Handle, query: string) -> bool {
 
 SqlError :: struct {
 	message: string,
-	code: int
+	code: int,
 }
 
 row_value_by_key_or_default :: proc($T: typeid, row: Row, key: string, def: T) -> T {
@@ -268,7 +268,7 @@ query :: proc(db: Handle, query: string, values: ..any) -> (queryResult: QueryRe
 		append(&result, row);
 	}
 	return {
-		rows=result
+		rows=result,
 	}, success;
 }
 
