@@ -4,6 +4,7 @@ import "core:c";
 import "core:strings";
 import "core:mem";
 import "core:fmt";
+import "core:log";
 
 when ODIN_OS == "darwin" {
 	foreign import "./sqlite3.a";
@@ -38,7 +39,7 @@ foreign sqlite3 {
 	sqlite3_open :: proc(cstring, ^Handle) -> c.int ---;
 	sqlite3_open_v2 :: proc(cstring, ^Handle, c.int, cstring) -> c.int ---;
 	sqlite3_close :: proc(Handle) ---;
-	sqlite3_finalize :: proc(Statement) ---;
+	sqlite3_finalize :: proc(Statement) -> c.int ---;
 	sqlite3_prepare_v2 :: proc(Handle, cstring, c.int, ^Statement, ^^u8) -> c.int ---;
 	sqlite3_step :: proc(Statement) -> SqliteStatus ---;
 	sqlite3_column_type :: proc(Statement, c.int) -> SqliteColumnType ---;
@@ -55,7 +56,10 @@ foreign sqlite3 {
 	sqlite3_backup_init :: proc(Handle, cstring, Handle, cstring) -> BackupHandle ---;
 	sqlite3_backup_step :: proc(BackupHandle, c.int) -> c.int ---;
 	sqlite3_backup_finish :: proc(BackupHandle) -> c.int ---;
-	sqlite3_bind_double :: proc(Statement, c.int, c.double) -> c.int ---;
+	sqlite3_bind_parameter_count :: proc(Statement) -> c.int ---;
+	sqlite3_reset :: proc(Statement) -> c.int ---;
+	sqlite3_clear_bindings :: proc(Statement) -> c.int ---;
+	sqlite3_bind_double :: proc "c" (Statement, c.int, c.double) -> c.int ---;
 	sqlite3_bind_int :: proc(Statement, c.int, c.int) -> c.int ---;
 	sqlite3_bind_int64 :: proc(Statement, c.int, i64) -> c.int ---;
 	sqlite3_bind_null :: proc(Statement, c.int) -> c.int ---;
@@ -92,7 +96,6 @@ backup_db :: proc(fromDb: Handle, toDb: Handle) -> bool {
 	backupHandle := sqlite3_backup_init(toDb, "main", fromDb, "main");
 	err := sqlite3_backup_step(backupHandle, -1);
 	e2 := sqlite3_backup_finish(backupHandle);
-	fmt.println(err, e2);
 
 	return true;
 
@@ -220,7 +223,7 @@ query :: proc(db: Handle, query: string, values: ..any) -> (queryResult: QueryRe
 							res = v;
 						}
 					}
-					sqlite3_bind_double(statement, i32(index + 1), res);
+					sqlRes := sqlite3_bind_double(statement, i32(index + 1), res);
 				}
 				case []u8: {
 					pointer := sqlite3_bind_blob(statement, i32(index + 1), rawptr(&v[0]), i32(len(v)), -1);
@@ -234,11 +237,12 @@ query :: proc(db: Handle, query: string, values: ..any) -> (queryResult: QueryRe
 		}
 	}
 
-	defer sqlite3_finalize(statement);
+	defer {
+		finalValue := sqlite3_finalize(statement);
+	}
 	step := sqlite3_step(statement);
 	for step != SQLITE_DONE {
 		if step != SQLITE_ROW {
-			fmt.println(step);
 			success = false;
 			queryResult.error = {message=cstring_to_string(sqlite3_errmsg(db)), code=int(step)};
 			break;
@@ -256,7 +260,8 @@ query :: proc(db: Handle, query: string, values: ..any) -> (queryResult: QueryRe
 					row[name] = sqlite3_column_int64(statement, colIndex);
 				}
 				case .REAL: {
-					row[name] = sqlite3_column_double(statement, colIndex);
+					val := sqlite3_column_double(statement, colIndex);
+					row[name] = val;
 				}
 				case .BLOB: {
 					rowData := sqlite3_column_blob(statement, colIndex);
@@ -274,9 +279,8 @@ query :: proc(db: Handle, query: string, values: ..any) -> (queryResult: QueryRe
 		step = sqlite3_step(statement);
 		append(&result, row);
 	}
-	return {
-		rows=result,
-	}, success;
+	queryResult.rows = result;
+	return;
 }
 
 cleanup :: proc(queryValue: QueryResult) {
@@ -298,10 +302,11 @@ cleanup :: proc(queryValue: QueryResult) {
 }
 
 prepare :: proc(db: Handle, query: string) -> (Statement, bool, string) {
-	cstr := strings.clone_to_cstring(query, context.temp_allocator);
+	cstr := strings.clone_to_cstring(query);
+	defer delete(cstr);
 	statement: Statement;
 	errStr := "";
-	res := sqlite3_prepare_v2(db, cstr, -1, &statement, nil);
+	res := sqlite3_prepare_v2(db, cstr, i32(len(query) + 1), &statement, nil);
 	if res != 0 {
 		errStr = cstring_to_string(sqlite3_errmsg(db));
 	}
