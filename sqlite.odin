@@ -165,73 +165,77 @@ query :: proc(db: Handle, query: string, values: ..any) -> (queryResult: QueryRe
 
 	if len(values) > 0 {
 		for value, index in values {
-			switch v in value {
-				case string: {
-					cstr := strings.clone_to_cstring(v, context.temp_allocator);
-					sqlite3_bind_text(statement, i32(index + 1), cstr, -1, nil);
-				}
-				case bool: {
-					val : i64 = v ? 1 : 0;
-					sqlite3_bind_int64(statement, i32(index + 1), val);
-				}
-				case i32, u32, i8, u8, i16, u16: {
-					res : i32;
-					switch v in value {
-						case i32: {
-							res = i32(v);
-						}
-						case u32: {
-							res = i32(v);
-						}
-						case i8: {
-							res = i32(v);
-						}
-						case i16: {
-							res = i32(v);
-						}
-						case u16: {
-							res = i32(v);
-						}
+			if value == nil {
+				sqlite3_bind_null(statement, i32(index + 1));
+			} else {
+				switch v in value {
+					case string: {
+						cstr := strings.clone_to_cstring(v, context.temp_allocator);
+						sqlite3_bind_text(statement, i32(index + 1), cstr, -1, nil);
 					}
-					sqlite3_bind_int(statement, i32(index + 1), res);
-				}
-				case int, i64, uint, u64: {
-					res : i64;
-					switch v in value {
-						case int: {
-							res = i64(v);
-						}
-						case i64: {
-							res = v;
-						}
-						case uint: {
-							res = i64(v);
-						}
-						case u64: {
-							res = i64(v);
-						}
+					case bool: {
+						val : i64 = v ? 1 : 0;
+						sqlite3_bind_int64(statement, i32(index + 1), val);
 					}
-					sqlite3_bind_int64(statement, i32(index + 1), res);
-				}
-				case f32, f64: {
-					res : f64;
-					switch v in value {
-						case f32: {
-							res = f64(v);
+					case i32, u32, i8, u8, i16, u16: {
+						res : i32;
+						switch v in value {
+							case i32: {
+								res = i32(v);
+							}
+							case u32: {
+								res = i32(v);
+							}
+							case i8: {
+								res = i32(v);
+							}
+							case i16: {
+								res = i32(v);
+							}
+							case u16: {
+								res = i32(v);
+							}
 						}
-						case f64: {
-							res = v;
-						}
+						sqlite3_bind_int(statement, i32(index + 1), res);
 					}
-					sqlRes := sqlite3_bind_double(statement, i32(index + 1), res);
-				}
-				case []u8: {
-					pointer := sqlite3_bind_blob(statement, i32(index + 1), rawptr(&v[0]), i32(len(v)), -1);
-				}
-				case: {
-					success = false;
-					queryResult.error = {message="Can't handle that type of argument", code=0};
-					return;
+					case int, i64, uint, u64: {
+						res : i64;
+						switch v in value {
+							case int: {
+								res = i64(v);
+							}
+							case i64: {
+								res = v;
+							}
+							case uint: {
+								res = i64(v);
+							}
+							case u64: {
+								res = i64(v);
+							}
+						}
+						sqlite3_bind_int64(statement, i32(index + 1), res);
+					}
+					case f32, f64: {
+						res : f64;
+						switch v in value {
+							case f32: {
+								res = f64(v);
+							}
+							case f64: {
+								res = v;
+							}
+						}
+						sqlRes := sqlite3_bind_double(statement, i32(index + 1), res);
+					}
+					case []u8: {
+						pointer := sqlite3_bind_blob(statement, i32(index + 1), rawptr(&v[0]), i32(len(v)), -1);
+					}
+					case: {
+						success = false;
+						queryResult.error = {message="Can't handle that type of argument", code=0};
+						return;
+					}
 				}
 			}
 		}
