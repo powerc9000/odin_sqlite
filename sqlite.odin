@@ -7,7 +7,7 @@ import "core:fmt";
 import "core:log";
 
 when ODIN_OS == "darwin" {
-	foreign import "./sqlite3.a";
+	foreign import sqlite3 "./sqlite3.a";
 } 
 when ODIN_OS == "windows" {
 	foreign import "./sqlite3.lib";
