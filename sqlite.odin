@@ -6,10 +6,10 @@ import "core:mem";
 import "core:fmt";
 import "core:log";
 
-when ODIN_OS == "darwin" {
+when ODIN_OS == .Darwin {
 	foreign import sqlite3 "./sqlite3.a";
 } 
-when ODIN_OS == "windows" {
+when ODIN_OS == .Windows {
 	foreign import "./sqlite3.lib";
 }
 
